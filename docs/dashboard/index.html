@@ -6,11 +6,9 @@
   <title>Olist Sales Ops Dashboard</title>
   <style>
     :root{
-      --bg:#0b1220; --panel:#111a2c; --panel2:#0f172a;
-      --stroke:rgba(255,255,255,.08);
+      --bg:#0b1220; --stroke:rgba(255,255,255,.08);
       --text:rgba(255,255,255,.92); --muted:rgba(255,255,255,.62);
       --chip:rgba(59,130,246,.18); --chipText:rgba(191,219,254,.95);
-      --ok:#34d399; --warn:#fbbf24; --bad:#fb7185;
       --radius:18px;
     }
     *{box-sizing:border-box}
@@ -62,8 +60,13 @@
     .titleRow .hint{color:var(--muted);font-size:12px}
     canvas{width:100%;height:320px;display:block}
     .small canvas{height:280px}
+
     .footer{display:flex;gap:10px;align-items:center;margin:10px 2px 0;color:var(--muted);font-size:12px}
     .dot{width:8px;height:8px;border-radius:999px;background:rgba(59,130,246,.7)}
+    .loading{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;margin-top:6px}
+    .spinner{width:10px;height:10px;border-radius:50%;border:2px solid rgba(255,255,255,.25);border-top-color:rgba(255,255,255,.75);animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
     .error{
       background: rgba(251,113,133,.12);
       border:1px solid rgba(251,113,133,.35);
@@ -71,9 +74,6 @@
       padding:10px 12px;border-radius:12px;margin:14px 0 0;display:none;
       white-space:pre-wrap;
     }
-    .loading{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;margin-top:6px}
-    .spinner{width:10px;height:10px;border-radius:50%;border:2px solid rgba(255,255,255,.25);border-top-color:rgba(255,255,255,.75);animation:spin 1s linear infinite}
-    @keyframes spin{to{transform:rotate(360deg)}}
 
     @media (max-width: 1000px){
       .filters{grid-template-columns:1fr 1fr}
@@ -180,7 +180,6 @@
 
 <script>
 (() => {
-  // ---------- helpers ----------
   const $ = (id) => document.getElementById(id);
 
   const fmtInt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
@@ -198,16 +197,17 @@
     el.textContent = "";
   }
 
-  function parseISO(d){ return new Date(d + "T00:00:00"); }
-  function toISO(dateObj){
-    const y = dateObj.getFullYear();
-    const m = String(dateObj.getMonth()+1).padStart(2,"0");
-    const d = String(dateObj.getDate()).padStart(2,"0");
-    return `${y}-${m}-${d}`;
-  }
-  function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+  // --- IMPORTANT: your JSON uses purchase_date, not order_date ---
+  const getDateStr = (r) => r.purchase_date ?? r.order_date ?? r.date ?? null;
+  const getState   = (r) => r.customer_state ?? r.state ?? r.customer_state_code ?? null;
+  const getStatus  = (r) => r.order_status ?? r.status ?? null;
 
-  // ---------- tiny charting (canvas) ----------
+  function parseISO(d){
+    if(!d) return null;
+    const dt = new Date(d + "T00:00:00");
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+
   function getCtx(canvas){
     const ctx = canvas.getContext("2d");
     const ratio = window.devicePixelRatio || 1;
@@ -218,8 +218,18 @@
     return ctx;
   }
 
-  function clearCanvas(ctx, w, h){
+  function drawEmpty(canvas, title){
+    const ctx = getCtx(canvas);
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
     ctx.clearRect(0,0,w,h);
+    ctx.fillStyle = "rgba(255,255,255,.55)";
+    ctx.font = "13px ui-sans-serif, system-ui";
+    ctx.fillText(`No data available`, 14, 22);
+    if(title){
+      ctx.fillStyle = "rgba(255,255,255,.35)";
+      ctx.fillText(title, 14, 42);
+    }
   }
 
   function drawAxes(ctx, w, h, pad){
@@ -232,7 +242,7 @@
     ctx.stroke();
   }
 
-  function drawLineSeries(ctx, w, h, pad, xs, ys, color){
+  function drawLine(ctx, w, h, pad, xs, ys, color){
     if(xs.length < 2) return;
     const minY = Math.min(...ys), maxY = Math.max(...ys);
     const spanY = (maxY - minY) || 1;
@@ -241,7 +251,7 @@
     ctx.lineWidth = 2;
     ctx.beginPath();
     for(let i=0;i<xs.length;i++){
-      const x = pad + ( (xs[i] - xs[0]) / (xs[xs.length-1]-xs[0] || 1) ) * (w - pad*2);
+      const x = pad + ((xs[i]-xs[0]) / ((xs[xs.length-1]-xs[0]) || 1)) * (w - pad*2);
       const y = (h - pad) - ((ys[i]-minY)/spanY) * (h - pad*2);
       if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
     }
@@ -264,7 +274,6 @@
       ctx.fillRect(x, y, bw, bh);
     }
 
-    // label only a few to keep it clean
     ctx.fillStyle = "rgba(255,255,255,.68)";
     ctx.font = "12px ui-sans-serif, system-ui";
     const step = n > 10 ? 2 : 1;
@@ -274,31 +283,13 @@
     }
   }
 
-  function drawEmpty(canvas, title){
-    const ctx = getCtx(canvas);
-    const rect = canvas.getBoundingClientRect();
-    const w = rect.width, h = rect.height;
-    clearCanvas(ctx,w,h);
-    ctx.fillStyle = "rgba(255,255,255,.55)";
-    ctx.font = "13px ui-sans-serif, system-ui";
-    ctx.fillText(`No data for selected filters`, 14, 22);
-    if(title){
-      ctx.fillStyle = "rgba(255,255,255,.35)";
-      ctx.fillText(title, 14, 42);
-    }
-  }
-
-  // ---------- load data ----------
   const PATH = "./data/";
-  const FILES = {
-    dailyOverall: "daily_overall.json",
-    dailyStateStatus: "daily_state_status.json",
-    stateTotals: "state_totals.json",
-    topCategories: "top_categories.json",
-    deliveryHist: "delivery_hist.json",
-    cohortMatrix: "cohort_matrix.json",
-    categoryDailyStatus: "category_daily_status.json"
-  };
+  const FILES = [
+    "daily_overall.json",
+    "daily_state_status.json",
+    "top_categories.json",
+    "delivery_hist.json"
+  ];
 
   async function fetchJSON(name){
     const url = PATH + name;
@@ -307,11 +298,6 @@
     return res.json();
   }
 
-  // ---------- state ----------
-  let raw = {};
-  let ready = false;
-
-  // Filters
   const startEl = $("start");
   const endEl = $("end");
   const stateEl = $("state");
@@ -336,69 +322,85 @@
     }
   }
 
-  function getScopeLabel(){
-    const s = stateEl.value === "__all__" ? "All" : stateEl.value;
-    const st = statusEl.value === "__all__" ? "All" : statusEl.value;
+  let dailyOverall = [];
+  let dailyStateStatus = [];
+  let topCategories = [];
+  let deliveryHist = [];
+
+  function scopeLabel(){
+    const s = stateEl.value === "__all__" ? "All states" : stateEl.value;
+    const st = statusEl.value === "__all__" ? "All statuses" : statusEl.value;
     return `${s} · ${st}`;
   }
 
-  function applyFilters(){
-    if(!ready) return;
+  function apply(){
     clearError();
 
-    const scope = getScopeLabel();
+    const start = parseISO(startEl.value);
+    const end   = parseISO(endEl.value);
+    const state = stateEl.value;
+    const status= statusEl.value;
+
+    const scope = scopeLabel();
     $("chipScopeA").textContent = scope;
     $("chipScopeB").textContent = scope;
     $("chipScopeC").textContent = scope;
 
-    const start = startEl.value ? parseISO(startEl.value) : null;
-    const end = endEl.value ? parseISO(endEl.value) : null;
-    const state = stateEl.value;
-    const status = statusEl.value;
-
-    // ---- daily trend source: daily_state_status (more granular). fallback to daily_overall.
-    let daily = raw.dailyStateStatus || [];
-    if(!daily.length) daily = raw.dailyOverall || [];
-
-    let filtDaily = daily.filter(r => {
-      const d = parseISO(r.order_date);
+    // --- Trend + KPIs: use daily_overall filtered by status/date (no state available here)
+    let rows = dailyOverall.filter(r => {
+      const d = parseISO(getDateStr(r));
+      if(!d) return false;
       if(start && d < start) return false;
       if(end && d > end) return false;
-      if(state !== "__all__" && r.customer_state !== state) return false;
-      if(status !== "__all__" && r.order_status !== status) return false;
+      if(status !== "__all__" && getStatus(r) !== status) return false;
       return true;
     });
 
-    // Aggregate by day (in case we filtered from state/status grain)
+    // If user selected a specific state, use daily_state_status for trend instead
+    if(state !== "__all__" && dailyStateStatus.length){
+      rows = dailyStateStatus.filter(r => {
+        const d = parseISO(getDateStr(r));
+        if(!d) return false;
+        if(start && d < start) return false;
+        if(end && d > end) return false;
+        if(getState(r) !== state) return false;
+        if(status !== "__all__" && getStatus(r) !== status) return false;
+        return true;
+      });
+    }
+
+    // aggregate by date
     const byDay = new Map();
-    for(const r of filtDaily){
-      const k = r.order_date;
+    for(const r of rows){
+      const k = getDateStr(r);
+      if(!k) continue;
       const prev = byDay.get(k) || { revenue:0, orders:0 };
       prev.revenue += +r.revenue || 0;
-      prev.orders += +r.orders || 0;
+      prev.orders  += +r.orders  || 0;
+     ief;
       byDay.set(k, prev);
     }
     const days = Array.from(byDay.keys()).sort();
     const rev = days.map(d => byDay.get(d).revenue);
     const ord = days.map(d => byDay.get(d).orders);
 
-    // KPIs
     const totalRev = rev.reduce((a,b)=>a+b,0);
     const totalOrders = ord.reduce((a,b)=>a+b,0);
-    const aov = totalOrders ? (totalRev/totalOrders) : 0;
+    const aov = totalOrders ? totalRev/totalOrders : 0;
 
     $("kpiRevenue").textContent = totalRev ? fmtMoney.format(totalRev) : "—";
-    $("kpiOrders").textContent = totalOrders ? fmtInt.format(totalOrders) : "—";
-    $("kpiAOV").textContent = totalOrders ? fmtMoney.format(aov) : "—";
+    $("kpiOrders").textContent  = totalOrders ? fmtInt.format(totalOrders) : "—";
+    $("kpiAOV").textContent     = totalOrders ? fmtMoney.format(aov) : "—";
 
-    // Avg delivery days (delivered only) using raw.deliveryHist bins weighted
-    // delivery_hist.json is overall, not filterable by state/status (kept simple)
-    if(raw.deliveryHist && raw.deliveryHist.length){
-      const bins = raw.deliveryHist.filter(r => (r.bin_start_days ?? 0) <= 60);
+    // Avg delivery days from delivery_hist (overall only)
+    if(deliveryHist.length){
+      const bins = deliveryHist
+        .filter(r => (+r.bin_start_days||0) <= 60)
+        .sort((a,b)=>(+a.bin_start_days||0)-(+b.bin_start_days||0));
       const total = bins.reduce((a,r)=>a + (+r.count||0), 0) || 0;
       const mid = bins.reduce((a,r)=>{
         const startD = +r.bin_start_days || 0;
-        const m = startD + 1; // approx midpoint for 2-day bin
+        const m = startD + 1;
         return a + m*(+r.count||0);
       },0);
       const avg = total ? (mid/total) : 0;
@@ -410,22 +412,16 @@
     // Trend chart
     const trendCanvas = $("trend");
     if(days.length < 2){
-      drawEmpty(trendCanvas, "Trend");
+      drawEmpty(trendCanvas, "Trend (pick a wider date range)");
     } else {
       const ctx = getCtx(trendCanvas);
       const { width:w, height:h } = trendCanvas.getBoundingClientRect();
-      clearCanvas(ctx,w,h);
+      ctx.clearRect(0,0,w,h);
       const pad = 28;
       drawAxes(ctx,w,h,pad);
-
-      // draw revenue (blue) and orders (green) normalized separately but visually readable
-      // revenue line
-      const xNums = days.map(d => parseISO(d).getTime());
-      drawLineSeries(ctx,w,h,pad,xNums,rev,"rgba(59,130,246,.9)");
-      // orders line (scaled to revenue axis is misleading; instead draw as faint second line normalized)
-      const ordNorm = ord.map(v => v);
-      drawLineSeries(ctx,w,h,pad,xNums,ordNorm,"rgba(16,185,129,.75)");
-
+      const xs = days.map(d => parseISO(d).getTime());
+      drawLine(ctx,w,h,pad,xs,rev,"rgba(59,130,246,.9)");
+      drawLine(ctx,w,h,pad,xs,ord,"rgba(16,185,129,.75)");
       ctx.fillStyle = "rgba(255,255,255,.68)";
       ctx.font = "12px ui-sans-serif, system-ui";
       ctx.fillText("Revenue", pad+6, pad+14);
@@ -433,135 +429,116 @@
       ctx.fillText("Orders", pad+72, pad+14);
     }
 
-    // Top states by revenue (use state_totals, but apply date/status filters if possible via daily_state_status)
+    // Top states by revenue: ONLY from daily_state_status
     const statesCanvas = $("states");
-    // compute from filtDaily (already filtered by date/state/status), but for "top states", ignore state filter
-    let filtForStates = daily.filter(r => {
-      const d = parseISO(r.order_date);
-      if(start && d < start) return false;
-      if(end && d > end) return false;
-      if(status !== "__all__" && r.order_status !== status) return false;
-      return true;
-    });
-    const byState = new Map();
-    for(const r of filtForStates){
-      const k = r.customer_state || "NA";
-      const prev = byState.get(k) || 0;
-      byState.set(k, prev + (+r.revenue||0));
-    }
-    const topStates = Array.from(byState.entries())
-      .sort((a,b)=>b[1]-a[1])
-      .slice(0,10);
-    if(!topStates.length){
-      drawEmpty(statesCanvas, "Top states");
+    if(!dailyStateStatus.length){
+      drawEmpty(statesCanvas, "Top states (daily_state_status.json missing)");
     } else {
-      const labels = topStates.map(d=>d[0]);
-      const vals = topStates.map(d=>d[1]);
-      const ctx = getCtx(statesCanvas);
-      const { width:w, height:h } = statesCanvas.getBoundingClientRect();
-      clearCanvas(ctx,w,h);
-      const pad = 28;
-      drawAxes(ctx,w,h,pad);
-      drawBars(ctx,w,h,pad,labels,vals,"rgba(59,130,246,.75)");
+      const filt = dailyStateStatus.filter(r => {
+        const d = parseISO(getDateStr(r));
+        if(!d) return false;
+        if(start && d < start) return false;
+        if(end && d > end) return false;
+        if(status !== "__all__" && getStatus(r) !== status) return false;
+        return true;
+      });
+      const byState = new Map();
+      for(const r of filt){
+        const s = getState(r);
+        if(!s) continue;
+        byState.set(s, (byState.get(s)||0) + (+r.revenue||0));
+      }
+      const top = Array.from(byState.entries()).sort((a,b)=>b[1]-a[1]).slice(0,10);
+      if(!top.length){
+        drawEmpty(statesCanvas, "Top states");
+      } else {
+        const labels = top.map(x=>x[0]);
+        const vals = top.map(x=>x[1]);
+        const ctx = getCtx(statesCanvas);
+        const { width:w, height:h } = statesCanvas.getBoundingClientRect();
+        ctx.clearRect(0,0,w,h);
+        const pad = 28;
+        drawAxes(ctx,w,h,pad);
+        drawBars(ctx,w,h,pad,labels,vals,"rgba(59,130,246,.75)");
+      }
     }
 
-    // Top categories (use top_categories.json; not filterable by state/status in this lightweight file)
+    // Top categories
     const catsCanvas = $("cats");
-    if(raw.topCategories && raw.topCategories.length){
-      const top = raw.topCategories.slice(0,12);
+    if(!topCategories.length){
+      drawEmpty(catsCanvas, "Categories");
+    } else {
+      const top = topCategories.slice(0,12);
       const labels = top.map(r=>r.category);
       const vals = top.map(r=>+r.revenue||0);
       const ctx = getCtx(catsCanvas);
       const { width:w, height:h } = catsCanvas.getBoundingClientRect();
-      clearCanvas(ctx,w,h);
+      ctx.clearRect(0,0,w,h);
       const pad = 28;
       drawAxes(ctx,w,h,pad);
       drawBars(ctx,w,h,pad,labels,vals,"rgba(16,185,129,.72)");
-    } else {
-      drawEmpty(catsCanvas, "Categories");
     }
 
-    // Delivery histogram (use delivery_hist.json)
+    // Delivery hist
     const delCanvas = $("delivery");
-    if(raw.deliveryHist && raw.deliveryHist.length){
-      const bins = raw.deliveryHist
+    if(!deliveryHist.length){
+      drawEmpty(delCanvas, "Delivery");
+    } else {
+      const bins = deliveryHist
         .filter(r => (+r.bin_start_days||0) <= 60)
-        .sort((a,b)=>(+a.bin_start_days||0) - (+b.bin_start_days||0));
-
+        .sort((a,b)=>(+a.bin_start_days||0)-(+b.bin_start_days||0));
       const labels = bins.map(r => String(+r.bin_start_days||0));
       const vals = bins.map(r => +r.count||0);
-
       const ctx = getCtx(delCanvas);
       const { width:w, height:h } = delCanvas.getBoundingClientRect();
-      clearCanvas(ctx,w,h);
+      ctx.clearRect(0,0,w,h);
       const pad = 28;
       drawAxes(ctx,w,h,pad);
       drawBars(ctx,w,h,pad,labels,vals,"rgba(99,102,241,.70)");
-    } else {
-      drawEmpty(delCanvas, "Delivery");
     }
   }
 
   async function init(){
     setLoading(true);
     clearError();
-
     try{
-      // load all jsons (some may not exist depending on your build — we handle gracefully)
-      const results = await Promise.allSettled(Object.values(FILES).map(fetchJSON));
+      const [a,b,c,d] = await Promise.all(FILES.map(fetchJSON));
+      dailyOverall = a || [];
+      dailyStateStatus = b || [];
+      topCategories = c || [];
+      deliveryHist = d || [];
 
-      const keys = Object.keys(FILES);
-      for(let i=0;i<keys.length;i++){
-        const key = keys[i];
-        const r = results[i];
-        if(r.status === "fulfilled") raw[key] = r.value;
-        else raw[key] = []; // keep empty
-      }
-
-      // Sanity: require at least daily_overall or daily_state_status to render
-      if(!(raw.dailyStateStatus?.length || raw.dailyOverall?.length)){
-        throw new Error(
-          "Loaded JSON files, but daily series is empty.\n" +
-          "Check that docs/dashboard/data/daily_overall.json exists and contains rows."
-        );
-      }
-
-      // Build filter dropdown values
-      const states = Array.from(new Set((raw.dailyStateStatus||[]).map(r=>r.customer_state).filter(Boolean))).sort();
-      const statuses = Array.from(new Set((raw.dailyStateStatus||[]).map(r=>r.order_status).filter(Boolean))).sort();
-
-      fillSelect(stateEl, states, "All states");
+      // build dropdowns
+      const statuses = Array.from(new Set(
+        [...dailyOverall, ...dailyStateStatus].map(getStatus).filter(Boolean)
+      )).sort();
       fillSelect(statusEl, statuses, "All statuses");
 
-      // Default date range from available data
-      const dailyRef = (raw.dailyOverall?.length ? raw.dailyOverall : raw.dailyStateStatus);
-      const dates = dailyRef.map(r => r.order_date).filter(Boolean).sort();
-      const minD = dates[0], maxD = dates[dates.length-1];
-      if(minD && maxD){
-        startEl.value = minD;
-        endEl.value = maxD;
+      const states = Array.from(new Set(
+        dailyStateStatus.map(getState).filter(Boolean)
+      )).sort();
+      fillSelect(stateEl, states, "All states");
+
+      // set default dates from dailyOverall (purchase_date)
+      const dates = dailyOverall.map(getDateStr).filter(Boolean).sort();
+      if(dates.length){
+        startEl.value = dates[0];
+        endEl.value = dates[dates.length-1];
       }
 
-      ready = true;
       setLoading(false);
-      applyFilters();
+      apply();
 
-      // listeners
-      [startEl, endEl, stateEl, statusEl].forEach(el => el.addEventListener("change", applyFilters));
-      window.addEventListener("resize", () => { if(ready) applyFilters(); });
+      [startEl, endEl, stateEl, statusEl].forEach(el => el.addEventListener("change", apply));
+      window.addEventListener("resize", apply);
 
     } catch(e){
       setLoading(false);
       setError(
-        "Dashboard failed to load.\n\n" +
-        "Most common causes:\n" +
-        "1) GitHub Pages not serving the JSON yet\n" +
-        "2) A JSON file path mismatch\n" +
-        "3) JSON is malformed\n\n" +
+        "Dashboard failed to load data.\n\n" +
         "Details:\n" + (e?.message || String(e))
       );
       console.error(e);
-      // draw empty placeholders
       ["trend","states","cats","delivery"].forEach(id => drawEmpty($(id)));
     }
   }
