@@ -2,6 +2,10 @@
 
 [![CI (DuckDB pipeline + tests)](https://github.com/simasaadi/pbi-semantic-model-sales-ops-olist/actions/workflows/ci.yml/badge.svg)](https://github.com/simasaadi/pbi-semantic-model-sales-ops-olist/actions/workflows/ci.yml)
 
+## Live HTML Dashboard
+https://simasaadi.github.io/pbi-semantic-model-sales-ops-olist/dashboard/
+
+
 Builds a DuckDB analytics model (staging → typed staging → star schema mart) on the Olist dataset, with SQL-based data tests, a small performance benchmark, and generated KPI charts.
 
 ## What’s inside
