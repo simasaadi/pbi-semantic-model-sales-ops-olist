@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Olist Sales Ops Dashboard</title>
+  <meta name="description" content="Interactive sales operations dashboard built on the Olist e-commerce dataset."/>
+  <link rel="preconnect" href="https://cdn.plot.ly" />
+  <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#0f1a2e;
+      --panel2:#0c1628;
+      --text:#e7eefc;
+      --muted:#9fb0d0;
+      --border:rgba(255,255,255,.08);
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius:16px;
+      --accent:#66b2ff;
+      --good:#3ddc97;
+      --warn:#ffd166;
+      --bad:#ff6b6b;
+      --chip:#101f3a;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: radial-gradient(1200px 800px at 20% -10%, rgba(102,178,255,.20), transparent 55%),
+                  radial-gradient(900px 700px at 90% 10%, rgba(61,220,151,.18), transparent 55%),
+                  var(--bg);
+      color:var(--text);
+    }
+    header{
+      padding:28px 22px 14px;
+      max-width:1200px;
+      margin:0 auto;
+    }
+    .title-row{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:16px;
+      flex-wrap:wrap;
+    }
+    h1{
+      margin:0;
+      font-size:22px;
+      font-weight:700;
+      letter-spacing:.2px;
+    }
+    .subtitle{
+      color:var(--muted);
+      margin-top:6px;
+      font-size:13px;
+      line-height:1.35;
+      max-width:780px;
+    }
+    .controls{
+      margin-top:16px;
+      display:grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap:10px;
+    }
+    .control{
+      background: rgba(255,255,255,.03);
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:10px 12px;
+      box-shadow: 0 1px 0 rgba(255,255,255,.05) inset;
+    }
+    .control label{
+      display:block;
+      color:var(--muted);
+      font-size:11px;
+      margin-bottom:6px;
+    }
+    .control select, .control input{
+      width:100%;
+      background:transparent;
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:10px;
+      padding:8px 10px;
+      color:var(--text);
+      outline:none;
+      font-size:13px;
+    }
+    .control input[type="date"]{ padding:7px 10px; }
+    .control select option{ color:#0b1220; }
+    .grid{
+      max-width:1200px;
+      margin:0 auto;
+      padding:0 22px 38px;
+    }
+    .kpis{
+      display:grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap:12px;
+      margin-top:10px;
+    }
+    .kpi{
+      grid-column: span 3;
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      border:1px solid var(--border);
+      border-radius: var(--radius);
+      padding:14px 14px 12px;
+      box-shadow: var(--shadow);
+      min-height:88px;
+    }
+    .kpi .label{
+      color:var(--muted);
+      font-size:12px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:2px 8px;
+      border-radius:999px;
+      background: var(--chip);
+      border:1px solid rgba(255,255,255,.10);
+      font-size:11px;
+      color:var(--muted);
+      line-height:18px;
+      white-space:nowrap;
+    }
+    .kpi .value{
+      margin-top:8px;
+      font-size:22px;
+      font-weight:750;
+      letter-spacing:.2px;
+    }
+    .kpi .note{
+      margin-top:6px;
+      color:var(--muted);
+      font-size:11px;
+    }
+    .cards{
+      display:grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap:12px;
+      margin-top:12px;
+    }
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.015));
+      border:1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card .card-h{
+      padding:14px 14px 0;
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .card .card-h h2{
+      margin:0;
+      font-size:14px;
+      font-weight:700;
+    }
+    .card .card-h p{
+      margin:4px 0 0;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .card .plot{
+      padding:10px 8px 8px;
+    }
+    #trend.card{ grid-column: span 8; }
+    #states.card{ grid-column: span 4; }
+    #categories.card{ grid-column: span 6; }
+    #delivery.card{ grid-column: span 6; }
+    #cohort.card{ grid-column: span 12; }
+    .footer{
+      max-width:1200px;
+      margin:0 auto;
+      padding: 0 22px 26px;
+      color:var(--muted);
+      font-size:11px;
+      line-height:1.35;
+    }
+    .footer a{ color: var(--accent); text-decoration:none; }
+    .loading{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      color:var(--muted);
+      font-size:12px;
+    }
+    .dot{
+      width:7px;height:7px;border-radius:50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px rgba(102,178,255,.18);
+      animation: pulse 1.3s infinite ease-in-out;
+    }
+    @keyframes pulse{
+      0%,100%{ transform:scale(1); opacity:.9}
+      50%{ transform:scale(1.45); opacity:.45}
+    }
+    @media (max-width: 980px){
+      #trend.card{ grid-column: span 12; }
+      #states.card{ grid-column: span 12; }
+      #categories.card{ grid-column: span 12; }
+      #delivery.card{ grid-column: span 12; }
+      .kpi{ grid-column: span 6; }
+      .controls{ grid-template-columns: repeat(6, 1fr); }
+    }
+    @media (max-width: 560px){
+      .kpi{ grid-column: span 12; }
+      .controls{ grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title-row">
+      <div>
+        <h1>Olist Sales Ops Dashboard</h1>
+        <div class="subtitle">
+          Interactive view of revenue, order volume, category mix, delivery performance, and cohort behavior.
+          Use the filters to explore time windows, states, and order statuses.
+        </div>
+      </div>
+      <div class="loading" id="loading">
+        <span class="dot"></span>
+        Loading data…
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="control" style="grid-column: span 3;">
+        <label for="dateStart">Start date</label>
+        <input id="dateStart" type="date" />
+      </div>
+      <div class="control" style="grid-column: span 3;">
+        <label for="dateEnd">End date</label>
+        <input id="dateEnd" type="date" />
+      </div>
+      <div class="control" style="grid-column: span 3;">
+        <label for="stateSel">Customer state</label>
+        <select id="stateSel"></select>
+      </div>
+      <div class="control" style="grid-column: span 3;">
+        <label for="statusSel">Order status</label>
+        <select id="statusSel"></select>
+      </div>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="kpis">
+      <div class="kpi">
+        <div class="label">Revenue <span class="chip" id="kpiScope1">All</span></div>
+        <div class="value" id="kpiRevenue">—</div>
+        <div class="note" id="kpiRevenueNote">—</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Orders <span class="chip" id="kpiScope2">All</span></div>
+        <div class="value" id="kpiOrders">—</div>
+        <div class="note" id="kpiOrdersNote">—</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Avg order value <span class="chip" id="kpiScope3">All</span></div>
+        <div class="value" id="kpiAOV">—</div>
+        <div class="note" id="kpiAOVNote">—</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Avg delivery days <span class="chip" id="kpiScope4">All</span></div>
+        <div class="value" id="kpiDelivery">—</div>
+        <div class="note" id="kpiDeliveryNote">Delivered orders only</div>
+      </div>
+    </section>
+
+    <section class="cards">
+      <div class="card" id="trend">
+        <div class="card-h">
+          <div>
+            <h2>Revenue & order volume trend</h2>
+            <p>Daily trend for the selected scope.</p>
+          </div>
+          <span class="chip" id="trendChip">Daily</span>
+        </div>
+        <div class="plot"><div id="plotTrend" style="height:360px;"></div></div>
+      </div>
+
+      <div class="card" id="states">
+        <div class="card-h">
+          <div>
+            <h2>Top states by revenue</h2>
+            <p>Ranked within the selected period and status.</p>
+          </div>
+          <span class="chip" id="statesChip">Top 10</span>
+        </div>
+        <div class="plot"><div id="plotStates" style="height:360px;"></div></div>
+      </div>
+
+      <div class="card" id="categories">
+        <div class="card-h">
+          <div>
+            <h2>Category mix</h2>
+            <p>Top categories by item revenue (price only).</p>
+          </div>
+          <span class="chip" id="catChip">Top 12</span>
+        </div>
+        <div class="plot"><div id="plotCategories" style="height:340px;"></div></div>
+      </div>
+
+      <div class="card" id="delivery">
+        <div class="card-h">
+          <div>
+            <h2>Delivery time distribution</h2>
+            <p>Histogram of delivered orders (0–60 days, 2-day bins).</p>
+          </div>
+          <span class="chip" id="delChip">Overall</span>
+        </div>
+        <div class="plot"><div id="plotDelivery" style="height:340px;"></div></div>
+      </div>
+
+      <div class="card" id="cohort">
+        <div class="card-h">
+          <div>
+            <h2>Cohort activity</h2>
+            <p>Customers active by months since first purchase (counts). Limited to 0–12 months.</p>
+          </div>
+          <span class="chip" id="cohortChip">Customers</span>
+        </div>
+        <div class="plot"><div id="plotCohort" style="height:420px;"></div></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="footer">
+    Tip: host this from GitHub Pages (Settings → Pages → Deploy from branch → /docs). Once enabled, link to <code>/dashboard/</code>.
+  </div>
+
+<script>
+(async function(){
+  const fmtMoney = new Intl.NumberFormat(undefined, { style:'currency', currency:'BRL', maximumFractionDigits:0 });
+  const fmtNum = new Intl.NumberFormat(undefined, { maximumFractionDigits:0 });
+
+  const stateSel = document.getElementById('stateSel');
+  const statusSel = document.getElementById('statusSel');
+  const dateStart = document.getElementById('dateStart');
+  const dateEnd = document.getElementById('dateEnd');
+  const loading = document.getElementById('loading');
+
+  const kpiRevenue = document.getElementById('kpiRevenue');
+  const kpiOrders = document.getElementById('kpiOrders');
+  const kpiAOV = document.getElementById('kpiAOV');
+  const kpiDelivery = document.getElementById('kpiDelivery');
+
+  const kpiScope1 = document.getElementById('kpiScope1');
+  const kpiScope2 = document.getElementById('kpiScope2');
+  const kpiScope3 = document.getElementById('kpiScope3');
+  const kpiScope4 = document.getElementById('kpiScope4');
+
+  function byId(id){ return document.getElementById(id); }
+
+  const [dailyStateStatus, categoryDailyStatus, deliveryHist, cohortMatrix] = await Promise.all([
+    fetch('./data/daily_state_status.json').then(r=>r.json()),
+    fetch('./data/category_daily_status.json').then(r=>r.json()),
+    fetch('./data/delivery_hist.json').then(r=>r.json()),
+    fetch('./data/cohort_matrix.json').then(r=>r.json())
+  ]);
+
+  // derive domains
+  const allStates = Array.from(new Set(dailyStateStatus.map(d=>d.customer_state))).filter(Boolean).sort();
+  const allStatuses = Array.from(new Set(dailyStateStatus.map(d=>d.order_status))).filter(Boolean).sort();
+
+  const allDates = dailyStateStatus.map(d=>d.purchase_date).sort();
+  const minDate = allDates[0];
+  const maxDate = allDates[allDates.length-1];
+
+  // init controls
+  function addOpt(sel, v, t){
+    const o=document.createElement('option');
+    o.value=v; o.textContent=t ?? v;
+    sel.appendChild(o);
+  }
+  stateSel.innerHTML=''; statusSel.innerHTML='';
+  addOpt(stateSel,'ALL','All states');
+  allStates.forEach(s=>addOpt(stateSel,s,s));
+  addOpt(statusSel,'ALL','All statuses');
+  allStatuses.forEach(s=>addOpt(statusSel,s,s));
+
+  dateStart.value = minDate;
+  dateEnd.value = maxDate;
+  dateStart.min = minDate; dateStart.max = maxDate;
+  dateEnd.min = minDate; dateEnd.max = maxDate;
+
+  function inRange(d){
+    return d.purchase_date >= dateStart.value && d.purchase_date <= dateEnd.value;
+  }
+  function statusOk(d){
+    return statusSel.value === 'ALL' || d.order_status === statusSel.value;
+  }
+  function stateOk(d){
+    return stateSel.value === 'ALL' || d.customer_state === stateSel.value;
+  }
+
+  function scopeLabel(){
+    const parts = [];
+    if(stateSel.value !== 'ALL') parts.push(stateSel.value);
+    if(statusSel.value !== 'ALL') parts.push(statusSel.value);
+    parts.push(`${dateStart.value} → ${dateEnd.value}`);
+    return parts.join(' • ');
+  }
+
+  function setScopeChips(){
+    const label = (stateSel.value === 'ALL' ? 'All states' : stateSel.value) + (statusSel.value === 'ALL' ? '' : ` • ${statusSel.value}`);
+    kpiScope1.textContent = label;
+    kpiScope2.textContent = label;
+    kpiScope3.textContent = label;
+    kpiScope4.textContent = label;
+  }
+
+  function rollupKpis(){
+    const slice = dailyStateStatus.filter(d=>inRange(d) && statusOk(d) && stateOk(d));
+    // sum revenue/orders; weighted AOV via sums; delivery avg is mean of means weighted by orders
+    let revenue=0, orders=0, deliveryNumer=0, deliveryDenom=0;
+    for(const r of slice){
+      const rev = +r.revenue || 0;
+      const ord = +r.orders || 0;
+      revenue += rev;
+      orders += ord;
+      const del = +r.delivery_days;
+      if(!Number.isNaN(del) && isFinite(del) && ord>0){
+        deliveryNumer += del * ord;
+        deliveryDenom += ord;
+      }
+    }
+    const aov = orders ? revenue / orders : 0;
+    const delivery = deliveryDenom ? deliveryNumer / deliveryDenom : NaN;
+
+    kpiRevenue.textContent = fmtMoney.format(revenue);
+    kpiOrders.textContent = fmtNum.format(orders);
+    kpiAOV.textContent = fmtMoney.format(aov);
+    kpiDelivery.textContent = Number.isFinite(delivery) ? `${delivery.toFixed(1)} days` : '—';
+
+    byId('kpiRevenueNote').textContent = `Total in scope: ${scopeLabel()}`;
+    byId('kpiOrdersNote').textContent = `Daily grain • Distinct orders`;
+    byId('kpiAOVNote').textContent = `Revenue ÷ orders`;
+  }
+
+  function drawTrend(){
+    // aggregate by date
+    const slice = dailyStateStatus.filter(d=>inRange(d) && statusOk(d) && stateOk(d));
+    const m = new Map(); // date -> {rev, ord}
+    for(const r of slice){
+      const k=r.purchase_date;
+      const cur=m.get(k) || {rev:0, ord:0};
+      cur.rev += (+r.revenue || 0);
+      cur.ord += (+r.orders || 0);
+      m.set(k,cur);
+    }
+    const dates = Array.from(m.keys()).sort();
+    const rev = dates.map(d=>m.get(d).rev);
+    const ord = dates.map(d=>m.get(d).ord);
+
+    const data = [
+      {
+        x: dates, y: rev,
+        type:'scatter', mode:'lines',
+        name:'Revenue',
+        hovertemplate:'%{x}<br>Revenue: %{y:,.0f}<extra></extra>'
+      },
+      {
+        x: dates, y: ord,
+        type:'bar',
+        name:'Orders',
+        yaxis:'y2',
+        opacity:0.55,
+        hovertemplate:'%{x}<br>Orders: %{y:,.0f}<extra></extra>'
+      }
+    ];
+    const layout = {
+      margin:{l:48,r:52,t:12,b:38},
+      paper_bgcolor:'rgba(0,0,0,0)',
+      plot_bgcolor:'rgba(0,0,0,0)',
+      font:{color:'#e7eefc'},
+      xaxis:{tickfont:{color:'#9fb0d0'}, gridcolor:'rgba(255,255,255,.06)'},
+      yaxis:{tickfont:{color:'#9fb0d0'}, gridcolor:'rgba(255,255,255,.06)'},
+      yaxis2:{
+        overlaying:'y',
+        side:'right',
+        tickfont:{color:'#9fb0d0'},
+        showgrid:false
+      },
+      legend:{orientation:'h', y:1.12, x:0, font:{color:'#9fb0d0'}},
+      hovermode:'x unified'
+    };
+    Plotly.react('plotTrend', data, layout, {displayModeBar:false, responsive:true});
+  }
+
+  function drawStates(){
+    // revenue by state (ignore state filter to keep the ranking meaningful; apply date + status)
+    const slice = dailyStateStatus.filter(d=>inRange(d) && statusOk(d));
+    const m = new Map(); // state -> rev
+    for(const r of slice){
+      const s=r.customer_state || 'NA';
+      m.set(s, (m.get(s)||0) + (+r.revenue||0));
+    }
+    let rows = Array.from(m.entries()).map(([state,rev])=>({state,rev}));
+    rows.sort((a,b)=>b.rev-a.rev);
+    rows = rows.slice(0,10).reverse();
+
+    const data = [{
+      x: rows.map(r=>r.rev),
+      y: rows.map(r=>r.state),
+      type:'bar',
+      orientation:'h',
+      hovertemplate:'%{y}<br>Revenue: %{x:,.0f}<extra></extra>'
+    }];
+    const layout = {
+      margin:{l:52,r:18,t:12,b:38},
+      paper_bgcolor:'rgba(0,0,0,0)',
+      plot_bgcolor:'rgba(0,0,0,0)',
+      font:{color:'#e7eefc'},
+      xaxis:{tickfont:{color:'#9fb0d0'}, gridcolor:'rgba(255,255,255,.06)'},
+      yaxis:{tickfont:{color:'#9fb0d0'}, gridcolor:'rgba(255,255,255,.02)'}
+    };
+    Plotly.react('plotStates', data, layout, {displayModeBar:false, responsive:true});
+  }
+
+  function drawCategories(){
+    // item revenue by category (apply date + status; ignore state for comparability)
+    const slice = categoryDailyStatus.filter(d=>inRange(d) && statusOk(d));
+    const m = new Map(); // cat -> rev
+    for(const r of slice){
+      const c=r.category || 'unknown';
+      m.set(c, (m.get(c)||0) + (+r.revenue||0));
+    }
+    let rows = Array.from(m.entries()).map(([category,rev])=>({category,rev}));
+    rows.sort((a,b)=>b.rev-a.rev);
+    rows = rows.slice(0,12).reverse();
+
+    const data = [{
+      x: rows.map(r=>r.rev),
+      y: rows.map(r=>r.category),
+      type:'bar',
+      orientation:'h',
+      hovertemplate:'%{y}<br>Item revenue: %{x:,.0f}<extra></extra>'
+    }];
+    const layout = {
+      margin:{l:160,r:18,t:12,b:38},
+      paper_bgcolor:'rgba(0,0,0,0)',
+      plot_bgcolor:'rgba(0,0,0,0)',
+      font:{color:'#e7eefc'},
+      xaxis:{tickfont:{color:'#9fb0d0'}, gridcolor:'rgba(255,255,255,.06)'},
+      yaxis:{tickfont:{color:'#9fb0d0'}, gridcolor:'rgba(255,255,255,.02)'}
+    };
+    Plotly.react('plotCategories', data, layout, {displayModeBar:false, responsive:true});
+  }
+
+  function drawDelivery(){
+    const x = deliveryHist.map(d=>`${d.bin_start}-${d.bin_end}`);
+    const y = deliveryHist.map(d=>d.orders);
+    const data = [{
+      x, y, type:'bar',
+      hovertemplate:'%{x} days<br>Orders: %{y:,.0f}<extra></extra>',
+      opacity:0.9
+    }];
+    const layout = {
+      margin:{l:48,r:18,t:12,b:88},
+      paper_bgcolor:'rgba(0,0,0,0)',
+      plot_bgcolor:'rgba(0,0,0,0)',
+      font:{color:'#e7eefc'},
+      xaxis:{tickfont:{color:'#9fb0d0'}, gridcolor:'rgba(255,255,255,.02)', tickangle:-35},
+      yaxis:{tickfont:{color:'#9fb0d0'}, gridcolor:'rgba(255,255,255,.06)'}
+    };
+    Plotly.react('plotDelivery', data, layout, {displayModeBar:false, responsive:true});
+  }
+
+  function drawCohort(){
+    const z = cohortMatrix.matrix;
+    const y = cohortMatrix.cohort_months;
+    const x = cohortMatrix.months_since;
+    const data = [{
+      z, y, x,
+      type:'heatmap',
+      hovertemplate:'Cohort: %{y}<br>Month +%{x}<br>Customers: %{z}<extra></extra>'
+    }];
+    const layout = {
+      margin:{l:90,r:18,t:12,b:44},
+      paper_bgcolor:'rgba(0,0,0,0)',
+      plot_bgcolor:'rgba(0,0,0,0)',
+      font:{color:'#e7eefc'},
+      xaxis:{tickfont:{color:'#9fb0d0'}, gridcolor:'rgba(255,255,255,.06)', title:{text:'Months since first purchase', font:{color:'#9fb0d0', size:12}}},
+      yaxis:{tickfont:{color:'#9fb0d0'}, gridcolor:'rgba(255,255,255,.02)'},
+    };
+    Plotly.react('plotCohort', data, layout, {displayModeBar:false, responsive:true});
+  }
+
+  function validateDates(){
+    if(dateStart.value > dateEnd.value){
+      const tmp = dateStart.value;
+      dateStart.value = dateEnd.value;
+      dateEnd.value = tmp;
+    }
+  }
+
+  function refresh(){
+    validateDates();
+    setScopeChips();
+    rollupKpis();
+    drawTrend();
+    drawStates();
+    drawCategories();
+    drawDelivery();
+    drawCohort();
+  }
+
+  [stateSel,statusSel,dateStart,dateEnd].forEach(el=>el.addEventListener('change', refresh));
+
+  // initial render
+  refresh();
+  loading.style.display = 'none';
+})();
+</script>
+</body>
+</html>
