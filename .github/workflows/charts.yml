@@ -1,12 +1,15 @@
 name: Charts (generate + commit)
 
 on:
-  push:
-    branches: [ main ]
-    paths-ignore:
-      - "docs/charts/**"
-      - "README.md"
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**"
+      - "sql/**"
+      - "tests/**"
+      - "requirements.txt"
+      - ".github/workflows/charts.yml"
 
 permissions:
   contents: write
@@ -24,9 +27,17 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install deps
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-            - name: Download DuckDB CLI (Linux)
+      - name: Install OS tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip curl
+
+      - name: Download DuckDB CLI (Linux)
         run: |
           set -eux
           mkdir -p tools/duckdb
@@ -46,7 +57,7 @@ jobs:
           set -eux
           unzip -o data/raw/olist_raw.zip -d data/raw
 
-      - name: Build DuckDB marts (create data/processed/olist.duckdb)
+      - name: Build DuckDB marts (create olist.duckdb)
         run: |
           set -eux
           mkdir -p data/processed
@@ -54,17 +65,11 @@ jobs:
           ./tools/duckdb/duckdb data/processed/olist.duckdb -f sql/02_staging_typed/stg_typed.sql
           ./tools/duckdb/duckdb data/processed/olist.duckdb -f sql/03_model/build_star.sql
 
-
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
       - name: Generate charts
-        run: |
-          python scripts/make_charts.py
+        run: python scripts/make_charts.py
 
       - name: Commit charts (if changed)
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore(charts): auto-generate KPI charts"
-          file_pattern: docs/charts/*.png
+          commit_message: "Update KPI charts"
+          file_pattern: "docs/charts/*.png"
