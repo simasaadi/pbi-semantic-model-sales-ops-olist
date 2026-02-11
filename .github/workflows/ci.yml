@@ -20,27 +20,38 @@ jobs:
           curl -L -o duckdb.zip "https://github.com/duckdb/duckdb/releases/download/${DUCKDB_VERSION}/duckdb_cli-linux-amd64.zip"
           unzip -o duckdb.zip -d tools/duckdb
           chmod +x tools/duckdb/duckdb
+          tools/duckdb/duckdb --version
 
-          - name: Unzip raw dataset
-  run: |
-    mkdir -p data/raw
-    unzip -o data/raw/olist_raw.zip -d data/raw
-    ls -la data/raw
+      - name: Download Olist raw CSVs
+        run: |
+          set -eux
+          mkdir -p data/raw
 
+          curl -L -o data/raw/olist_customers_dataset.csv https://raw.githubusercontent.com/leeyenter/bt4211-project/master/data/olist_customers_dataset.csv
+          curl -L -o data/raw/olist_geolocation_dataset.csv https://raw.githubusercontent.com/leeyenter/bt4211-project/master/data/olist_geolocation_dataset.csv
+          curl -L -o data/raw/olist_order_items_dataset.csv https://raw.githubusercontent.com/leeyenter/bt4211-project/master/data/olist_order_items_dataset.csv
+          curl -L -o data/raw/olist_order_payments_dataset.csv https://raw.githubusercontent.com/leeyenter/bt4211-project/master/data/olist_order_payments_dataset.csv
+          curl -L -o data/raw/olist_order_reviews_dataset.csv https://raw.githubusercontent.com/leeyenter/bt4211-project/master/data/olist_order_reviews_dataset.csv
+          curl -L -o data/raw/olist_orders_dataset.csv https://raw.githubusercontent.com/leeyenter/bt4211-project/master/data/olist_orders_dataset.csv
+          curl -L -o data/raw/olist_products_dataset.csv https://raw.githubusercontent.com/leeyenter/bt4211-project/master/data/olist_products_dataset.csv
+          curl -L -o data/raw/olist_sellers_dataset.csv https://raw.githubusercontent.com/leeyenter/bt4211-project/master/data/olist_sellers_dataset.csv
+          curl -L -o data/raw/product_category_name_translation.csv https://raw.githubusercontent.com/leeyenter/bt4211-project/master/data/product_category_name_translation.csv
+
+          ls -lh data/raw
 
       - name: Run staging load
         run: |
-          ./tools/duckdb/duckdb data/processed/olist.duckdb -f sql/01_staging/load_staging.sql
+          tools/duckdb/duckdb data/processed/olist.duckdb -f sql/01_staging/load_staging.sql
 
       - name: Run typed staging checks
         run: |
-          ./tools/duckdb/duckdb data/processed/olist.duckdb -f sql/02_staging_typed/stg_typed.sql
+          tools/duckdb/duckdb data/processed/olist.duckdb -f sql/02_staging_typed/stg_typed.sql
 
       - name: Build star schema
         run: |
-          ./tools/duckdb/duckdb data/processed/olist.duckdb -f sql/03_model/build_star.sql
+          tools/duckdb/duckdb data/processed/olist.duckdb -f sql/03_model/build_star.sql
 
       - name: Run tests (report)
         run: |
-          ./tools/duckdb/duckdb data/processed/olist.duckdb -f tests/duckdb_test_report.sql
-
+          tools/duckdb/duckdb data/processed/olist.duckdb -f tests/duckdb_tests.sql
+          tools/duckdb/duckdb data/processed/olist.duckdb -f tests/duckdb_test_report.sql
