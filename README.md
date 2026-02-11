@@ -2,8 +2,7 @@
 
 [![CI (DuckDB pipeline + tests)](https://github.com/simasaadi/pbi-semantic-model-sales-ops-olist/actions/workflows/ci.yml/badge.svg)](https://github.com/simasaadi/pbi-semantic-model-sales-ops-olist/actions/workflows/ci.yml)
 
-## Live dashboard
-https://simasaadi.github.io/pbi-semantic-model-sales-ops-olist/dashboard/
+[![Live Dashboard](https://img.shields.io/badge/Live%20Dashboard-Open-blue)](https://simasaadi.github.io/pbi-semantic-model-sales-ops-olist/dashboard/)
 
 
 
