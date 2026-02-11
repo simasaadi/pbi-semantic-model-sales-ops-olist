@@ -59,3 +59,13 @@ jobs:
         run: |
           set -eux
           ./tools/duckdb/duckdb data/processed/olist.duckdb -f tests/duckdb_test_report.sql
+
+              - name: Upload artifacts (DuckDB + test report)
+      uses: actions/upload-artifact@v4
+      with:
+        name: duckdb-build
+        path: |
+          data/processed/olist.duckdb
+          tests/duckdb_test_report.sql
+          tests/duckdb_tests.sql
+
