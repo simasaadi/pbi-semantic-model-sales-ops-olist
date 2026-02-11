@@ -377,7 +377,6 @@
       const prev = byDay.get(k) || { revenue:0, orders:0 };
       prev.revenue += +r.revenue || 0;
       prev.orders  += +r.orders  || 0;
-     ief;
       byDay.set(k, prev);
     }
     const days = Array.from(byDay.keys()).sort();
@@ -447,7 +446,7 @@
         const s = getState(r);
         if(!s) continue;
         byState.set(s, (byState.get(s)||0) + (+r.revenue||0));
-      }
+      } 
       const top = Array.from(byState.entries()).sort((a,b)=>b[1]-a[1]).slice(0,10);
       if(!top.length){
         drawEmpty(statesCanvas, "Top states");
