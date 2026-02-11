@@ -1,1 +1,39 @@
+name: CI (DuckDB pipeline + tests)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  duckdb-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download DuckDB CLI (Linux)
+        run: |
+          set -eux
+          mkdir -p tools/duckdb
+          DUCKDB_VERSION="v1.4.4"
+          curl -L -o duckdb.zip "https://github.com/duckdb/duckdb/releases/download/${DUCKDB_VERSION}/duckdb_cli-linux-amd64.zip"
+          unzip -o duckdb.zip -d tools/duckdb
+          chmod +x tools/duckdb/duckdb
+
+      - name: Run staging load
+        run: |
+          ./tools/duckdb/duckdb data/processed/olist.duckdb -f sql/01_staging/load_staging.sql
+
+      - name: Run typed staging checks
+        run: |
+          ./tools/duckdb/duckdb data/processed/olist.duckdb -f sql/02_staging_typed/stg_typed.sql
+
+      - name: Build star schema
+        run: |
+          ./tools/duckdb/duckdb data/processed/olist.duckdb -f sql/03_model/build_star.sql
+
+      - name: Run tests (report)
+        run: |
+          ./tools/duckdb/duckdb data/processed/olist.duckdb -f tests/duckdb_test_report.sql
 
