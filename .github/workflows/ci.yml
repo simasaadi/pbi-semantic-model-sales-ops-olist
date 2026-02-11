@@ -21,6 +21,13 @@ jobs:
           unzip -o duckdb.zip -d tools/duckdb
           chmod +x tools/duckdb/duckdb
 
+          - name: Unzip raw dataset
+  run: |
+    mkdir -p data/raw
+    unzip -o data/raw/olist_raw.zip -d data/raw
+    ls -la data/raw
+
+
       - name: Run staging load
         run: |
           ./tools/duckdb/duckdb data/processed/olist.duckdb -f sql/01_staging/load_staging.sql
